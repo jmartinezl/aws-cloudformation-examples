@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LambdaExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ses_manage_bounce_role_lambdas
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: ses_manage_bounce_lambda_policy
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+              - Effect: Allow
+                Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                - dynamodb:BatchGetItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:BatchWriteItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateIte
+                Resource:
+                  Fn::GetAtt: 
+                    - "DynamoDBTable"
+                    - "Arn"
+  DynamoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        AttributeDefinitions: 
+          - AttributeName: email
+            AttributeType: S
+        KeySchema: 
+          - AttributeName: email
+            KeyType: HASH
+        ProvisionedThroughput: 
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+        TableName: "bounced_emails"
+  RegisterBounceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ses_manage_bounce_Lambda_register_bounce_email
+      Handler: controller.lambda_handler
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Code: 
+        S3Bucket: some-bucket-name
+        S3Key: code.zip
+      Runtime: python3.7
+      Timeout: 600
+      MemorySize: 256
+      Description: Manage AWS SES Email Bounce and Suppression list
+      Layers:
+        - <some layer ARN>
+      Environment:
+        Variables:
+          DYNAMO_DB:
+            Fn::GetAtt: 
+              - "DynamoDBTable"
+              - "TableName"
+  AddToFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ses_manage_bounce_Lambda_add_to_suppression_list
+      Handler: controller.lambda_handler
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Code: 
+        S3Bucket: some-bucket-name
+        S3Key: code.zip
+      Runtime: python3.7
+      Timeout: 600
+      MemorySize: 256
+      Description: Manage AWS SES Email Bounce and Suppression list
+      Layers:
+        - <some layer ARN>
+      Environment:
+        Variables:
+          DYNAMO_DB:
+            Fn::GetAtt: 
+              - "DynamoDBTable"
+              - "TableName"
+  ScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRule"
+      ScheduleExpression: "rate(4 hour)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "AddToFunction"
+              - "Arn"
+          Id: "AddToFunction"
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "AddToFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ScheduledRule"
+          - "Arn"
+  SNSTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: !Sub 'SNS-sns-topic'
+        TopicName: !Sub 'SNS-sns-topic'
+        Subscription:
+          - Protocol: lambda
+            Endpoint: !GetAtt RegisterBounceFunction.Arn
+  RegisterBounceFunctionInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref RegisterBounceFunction
+      Principal: sns.amazonaws.com   
+  SNSTopicPolicy:
+    Type: 'AWS::SNS::TopicPolicy'
+    Properties:
+      Topics:
+        - !Ref SNSTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: 'sns:Publish'
+            Resource: !Ref SNSTopic
+            Principal:
+              AWS: '*'
+            Condition:
+              ArnLike:
+                AWS:SourceArn: !Sub 'arn:aws:*:*:${AWS::AccountId}:*'

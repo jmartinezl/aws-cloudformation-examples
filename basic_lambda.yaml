@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LambdaExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: myproject_role_lambdas
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: myproject_lambda_rpolicy
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+              - Effect: Allow
+                Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                - secretsmanager:GetSecretValue
+                Resource: <secret-arn>
+              - Effect: Allow
+                Action:
+                - secretsmanager:GetSecretValue
+                Resource: <secret-arn>
+              - Effect: Allow
+                Action:
+                - secretsmanager:GetSecretValue
+                Resource: <secret-arn>
+              - Effect: Allow
+                Action:
+                - ec2:CreateNetworkInterface
+                - ec2:DescribeNetworkInterfaces
+                - ec2:DeleteNetworkInterface
+                Resource: '*'
+  InsertProcessFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: myproject_lambda_InsertProcess
+      Handler: index.handler
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Code: 
+        S3Bucket: my-project-lambdas-code-bucket
+        S3Key: java_code.zip
+      Runtime: java8
+      Timeout: 90
+      MemorySize: 128
+      Description: Project description
+      VpcConfig: 
+        SecurityGroupIds: 
+          - sg-<id>
+        SubnetIds: 
+          - subnet-<id>
+          - subnet-<id>
+      Environment:
+        Variables:
+          ENV_SECRET: myproject_secret_db
+          ENV_SECRET_QA: myproject_secret_db_qa

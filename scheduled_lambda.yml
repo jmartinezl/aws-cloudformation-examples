@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  LambdaExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: myproject_role_lambdas
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: myproject_lambda_policy
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+              - Effect: Allow
+                Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                - secretsmanager:GetSecretValue
+                Resource: arn:aws:secretsmanager:<region>:<account-number>:secret:<secret-name>
+              - Effect: Allow
+                Action:
+                - secretsmanager:GetSecretValue
+                Resource:  arn:aws:secretsmanager:<region>:<account-number>:secret:<secret-name>
+              - Effect: Allow
+                Action:
+                - ec2:CreateNetworkInterface
+                - ec2:DescribeNetworkInterfaces
+                - ec2:DeleteNetworkInterface
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+                Resource: '*'
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: myproject_lambda_sendalerts
+      Handler: index.handler 
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Code:
+        ZipFile: !Sub
+          - |
+            def handler(event, context):
+                val = ${ValueToSub1}
+                print("This is a test with value '{}'.".format(val))
+          - ValueToSub1: "test1234"
+      Runtime: python3.7
+      Timeout: 600
+      MemorySize: 1024
+      Description: Lambda description
+      VpcConfig: 
+        SecurityGroupIds: 
+          - sg-<id> 
+        SubnetIds: 
+          - subnet-<id> 
+          - subnet-<id> 
+      Layers:
+        - arn:aws:lambda:<region>:<account-number>:layer:<layer-name>:<version>
+        - arn:aws:lambda:<region>:<account-number>:layer:<layer-name>:<version>
+      Environment:
+        Variables:
+          HYBRIS_DB_SECRET:<secret-name>
+          ISS_DB_SECRET:<secret-name>
+          ISS_DB_SECRET:<secret-name>
+  ScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRule"
+      ScheduleExpression: "rate(10 minutes)"
+      State: "DISABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "LambdaFunction"
+              - "Arn"
+          Id: "LambdaFunction"
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "LambdaFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ScheduledRule"
+          - "Arn"
