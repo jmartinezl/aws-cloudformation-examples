@@ -5,10 +5,10 @@ Use sample AWS CloudFormation templates to learn how to declare specific AWS res
 
 You use the CLI to fire up a Cloudformation stack using the create-stack command. The command, however, takes a few arguments to pass important information. This minimal example shows you how to point CloudFormation to your JSON template file, a name to assign to your stack, and a valid SSH key so I’ll be able to log into the instance it creates.
 
-´´´
+```bash
 aws cloudformation create-stack \
   --template-body file://file.yaml \
   --stack-name lamp \
   --parameters \
   ParameterKey=KeyName,ParameterValue=mykey
-´´´
+```
