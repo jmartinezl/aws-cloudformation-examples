@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: Apache-2.0
+Description: 'Stack for managing Jenkins.'
+Parameters:
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+  Subnet:
+    Type: AWS::EC2::Subnet::Id
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+  SecurityGroups:
+    Type: AWS::EC2::SecurityGroup::Id
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium, t2.large, m1.small,
+      m1.medium, m1.large, m1.xlarge, m2.xlarge, m2.2xlarge, m2.4xlarge, m3.medium,
+      m3.large, m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge,
+      m4.10xlarge, c1.medium, c1.xlarge, c3.large, c3.xlarge, c3.2xlarge, c3.4xlarge,
+      c3.8xlarge, c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, g2.2xlarge,
+      g2.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge, r3.8xlarge, i2.xlarge,
+      i2.2xlarge, i2.4xlarge, i2.8xlarge, d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge,
+      hi1.4xlarge, hs1.8xlarge, cr1.8xlarge, cc2.8xlarge, cg1.4xlarge]
+    ConstraintDescription: must be a valid EC2 instance type.
+Mappings:
+  RegionMap:
+    'ap-south-1':
+      AMI: 'ami-531a4c3c'
+    'eu-west-3':
+      AMI: 'ami-8ee056f3'
+    'eu-west-2':
+      AMI: 'ami-403e2524'
+    'eu-west-1':
+      AMI: 'ami-d834aba1'
+    'ap-northeast-2':
+      AMI: 'ami-863090e8'
+    'ap-northeast-1':
+      AMI: 'ami-ceafcba8'
+    'sa-east-1':
+      AMI: 'ami-84175ae8'
+    'ca-central-1':
+      AMI: 'ami-a954d1cd'
+    'ap-southeast-1':
+      AMI: 'ami-68097514'
+    'ap-southeast-2':
+      AMI: 'ami-942dd1f6'
+    'eu-central-1':
+      AMI: 'ami-5652ce39'
+    'us-east-1':
+      AMI: 'ami-97785bed'
+    'us-east-2':
+      AMI: 'ami-f63b1193'
+    'us-west-1':
+      AMI: 'ami-824c4ee2'
+    'us-west-2':
+      AMI: 'ami-f2d3638a'
+Resources:
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: "us-west-2a"
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+      InstanceType: !Ref InstanceType
+      #IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: true
+        DeviceIndex: '0'
+        GroupSet:
+        - !Ref SecurityGroups
+        SubnetId: !Ref "Subnet"
+      Tags:
+        - Key: 'Name'
+          Value: 'Jenkins_Server'
+        - Key: 'Environment'
+          Value: 'Test'
+        - Key: 'Application'
+          Value: 'ApplicationName'
+        - Key: 'Project'
+          Value: 'YourProject'
+        - Key: 'Created By'
+          Value: 'jesus.martinez'
+        - Key: 'Owner'
+          Value: 'testing purpose'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          wget -O /etc/yum.repos.d/jenkins.repo \
+            https://pkg.jenkins.io/redhat-stable/jenkins.repo
+          rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+          yum upgrade
+          # Add required dependencies for the jenkins package
+          yum install java-11-openjdk
+          yum install jenkins
+          systemctl daemon-reload   
+Outputs:
+  InstanceId:
+    Description: Instance Id of newly created instance.
+    Value: !Ref Ec2Instance
+  AvailabilityZone:
+    Description: The Availability Zone of the instance.
+    Value: !GetAtt Ec2Instance.AvailabilityZone
+  PrivateDnsName:
+    Description: The private DNS name of the instance.
+    Value: !GetAtt Ec2Instance.PrivateDnsName
+  PublicDnsName:
+    Description: The public DNS name of the instance.
+    Value: !GetAtt Ec2Instance.PublicDnsName
+  PrivateIp:
+    Description: Private IP of the instance.
+    Value: !GetAtt Ec2Instance.PrivateIp
